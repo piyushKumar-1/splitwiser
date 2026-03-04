@@ -214,12 +214,7 @@ export class DexieRepository implements IDataRepository {
   async clearAll(): Promise<void> {
     await db.transaction(
       'rw',
-      db.groups,
-      db.expenses,
-      db.settlements,
-      db.activityLog,
-      db.syncEvents,
-      db.syncMeta,
+      [db.groups, db.expenses, db.settlements, db.activityLog, db.syncEvents, db.syncMeta],
       async () => {
         await db.groups.clear();
         await db.expenses.clear();
