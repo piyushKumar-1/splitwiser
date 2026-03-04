@@ -77,7 +77,7 @@ export default function DashboardPage() {
       ) : (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider pt-3">
               Your Groups
             </h2>
             <Link to="/groups" className="text-xs text-primary font-medium">

@@ -5,6 +5,7 @@ import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { fetchGroups, addGroup, removeGroup } from './groupsThunks';
 import { selectGroups, selectGroupsStatus } from './groupsSelectors';
 import { discoverAndAutoJoin } from '@/features/sync/auto-discover';
+import { pullAllGroups } from '@/features/sync/sync-engine';
 import { selectAuthUserEmail } from '@/features/auth/authSelectors';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -76,7 +77,11 @@ export default function GroupListPage() {
   const handleSync = async () => {
     setSyncing(true);
     try {
-      await discoverAndAutoJoin();
+      // Pull latest events for all synced groups + discover new shared groups
+      await Promise.all([
+        pullAllGroups({ force: true }),
+        discoverAndAutoJoin(),
+      ]);
       dispatch(fetchGroups());
       toast.success('Sync complete');
     } catch {

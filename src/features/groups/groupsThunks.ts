@@ -4,11 +4,10 @@ import { dataRepository } from '@/data';
 import type { Group, Member } from '@/shared/types';
 import type { RootState } from '@/app/store';
 import { emitSyncEvent } from '@/features/sync/event-builder';
-import { syncAfterMutation } from '@/features/sync/sync-engine';
+import { pullEvents, pushEvents } from '@/features/sync/sync-engine';
 import * as driveApi from '@/features/sync/drive-api';
 import { getCurrentUser } from '@/features/sync/google-auth';
 import * as sheetsApi from '@/features/sync/sheets-api';
-import * as syncEngine from '@/features/sync/sync-engine';
 import { setupSyncForGroup } from '@/features/sync/sync-setup';
 
 export const fetchGroups = createAsyncThunk('groups/fetchAll', async () => {
@@ -53,6 +52,9 @@ export const editGroup = createAsyncThunk(
   async (group: Group) => {
     const user = getCurrentUser();
 
+    // Pull latest from sheet before editing
+    await pullEvents(group.id).catch(() => {});
+
     // Snapshot old members before updating
     const oldGroup = await dataRepository.getGroup(group.id);
     const oldEmails = new Set(
@@ -64,7 +66,25 @@ export const editGroup = createAsyncThunk(
     const added = [...newEmails].filter((e) => !oldEmails.has(e));
     const removed = [...oldEmails].filter((e) => !newEmails.has(e));
 
+    // Save locally
     const updated = await dataRepository.updateGroup(group);
+
+    // Emit sync event
+    const syncEvent = await emitSyncEvent(updated.id, 'group', updated.id, 'update', updated, dataRepository);
+
+    // Push to sheet — if this fails, roll back
+    try {
+      await pushEvents(updated.id);
+    } catch (err) {
+      if (oldGroup) {
+        await dataRepository.updateGroup(oldGroup).catch(() => {});
+      }
+      if (syncEvent) {
+        await dataRepository.deleteSyncEvent(syncEvent.id).catch(() => {});
+      }
+      throw new Error(`Sync to sheet failed: ${(err as Error).message}`);
+    }
+
     await dataRepository.logActivity({
       groupId: updated.id,
       action: 'group_updated',
@@ -72,15 +92,12 @@ export const editGroup = createAsyncThunk(
       timestamp: new Date().toISOString(),
     });
 
-    await emitSyncEvent(updated.id, 'group', updated.id, 'update', updated, dataRepository);
-    syncAfterMutation(updated.id).catch(() => {});
-
     // Ensure sync is set up (idempotent — won't create duplicate sheets)
     if ((added.length > 0 || removed.length > 0) && user) {
       try {
         await setupSyncForGroup(updated.id, updated.name);
       } catch {
-        // Non-blocking
+        // Non-blocking: sharing failure shouldn't block the edit
       }
     }
 
@@ -133,7 +150,7 @@ export const removeGroup = createAsyncThunk(
     await emitSyncEvent(id, 'group', id, 'delete', {}, dataRepository);
     if (meta?.spreadsheetId && meta.syncEnabled) {
       try {
-        await syncEngine.pushEvents(id);
+        await pushEvents(id);
       } catch {
         // Non-blocking: push failure shouldn't prevent local deletion
       }

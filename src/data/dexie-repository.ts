@@ -86,6 +86,10 @@ export class DexieRepository implements IDataRepository {
     return db.settlements.where({ groupId }).reverse().sortBy('date');
   }
 
+  async getSettlement(id: string): Promise<Settlement | undefined> {
+    return db.settlements.get(id);
+  }
+
   async createSettlement(data: Omit<Settlement, 'id' | 'createdAt'>): Promise<Settlement> {
     const now = new Date().toISOString();
     const settlement: Settlement = {

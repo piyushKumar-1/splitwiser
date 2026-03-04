@@ -50,19 +50,21 @@ export async function pushEvents(groupId: string): Promise<void> {
 
 // ── PULL ─────────────────────────────────────────────────────
 
-export async function pullEvents(groupId: string): Promise<boolean> {
+export async function pullEvents(
+  groupId: string,
+  { force = false }: { force?: boolean } = {},
+): Promise<boolean> {
   const meta = await dataRepository.getSyncMeta(groupId);
   if (!meta?.spreadsheetId || !meta.syncEnabled) return false;
 
   const user = getCurrentUser();
   if (!user) return false;
 
-  // Cheap modifiedTime check via Drive API
+  // Cheap modifiedTime check via Drive API (skip when forced)
+  let remoteModified: string | undefined;
   try {
-    const remoteModified = await driveApi.getFileModifiedTime(
-      meta.spreadsheetId,
-    );
-    if (remoteModified === meta.lastRemoteModifiedTime) {
+    remoteModified = await driveApi.getFileModifiedTime(meta.spreadsheetId);
+    if (!force && remoteModified === meta.lastRemoteModifiedTime) {
       return false; // no changes
     }
   } catch (err) {
@@ -81,7 +83,6 @@ export async function pullEvents(groupId: string): Promise<boolean> {
 
   try {
     // Read new rows starting after our last known row
-    // +1 because lastSyncedRow is the last row we processed; row 1 is the header
     const startRow = (meta.lastSyncedRow || 1) + 1;
     const rawRows = await sheetsApi.readRows(
       meta.spreadsheetId,
@@ -90,6 +91,13 @@ export async function pullEvents(groupId: string): Promise<boolean> {
     );
 
     if (rawRows.length === 0) {
+      // Even if no new rows, update the modifiedTime so we don't re-check
+      if (remoteModified && remoteModified !== meta.lastRemoteModifiedTime) {
+        await dataRepository.upsertSyncMeta({
+          ...meta,
+          lastRemoteModifiedTime: remoteModified,
+        });
+      }
       store.dispatch(setSyncOperationStatus('idle'));
       return false;
     }
@@ -98,21 +106,17 @@ export async function pullEvents(groupId: string): Promise<boolean> {
     const events = sheetsApi.parseEventRows(rawRows);
     const changes = await replayRemoteEvents(events, user.email, dataRepository);
 
-    // Update sync meta
-    const totalRows = await sheetsApi.getRowCount(
-      meta.spreadsheetId,
-      'events',
-    );
-    const remoteModified = await driveApi.getFileModifiedTime(
-      meta.spreadsheetId,
-    );
+    // Update sync meta — fetch row count in parallel with nothing else needed
+    const totalRows = await sheetsApi.getRowCount(meta.spreadsheetId, 'events');
+    // Reuse remoteModified from above instead of fetching again
+    const finalModified = remoteModified ?? await driveApi.getFileModifiedTime(meta.spreadsheetId);
     const now = new Date().toISOString();
 
     await dataRepository.upsertSyncMeta({
       ...meta,
       lastSyncedRow: totalRows,
       lastSyncedAt: now,
-      lastRemoteModifiedTime: remoteModified,
+      lastRemoteModifiedTime: finalModified,
     });
 
     // Refresh Redux state for any changed entity types
@@ -144,6 +148,19 @@ export async function pullEvents(groupId: string): Promise<boolean> {
   }
 }
 
+// ── PULL ALL GROUPS (for manual refresh) ─────────────────────
+
+export async function pullAllGroups({ force = false }: { force?: boolean } = {}): Promise<void> {
+  const allMeta = await dataRepository.getAllSyncMeta();
+  const enabledGroups = allMeta.filter((m) => m.syncEnabled);
+  if (enabledGroups.length === 0) return;
+
+  // Pull all groups in parallel
+  await Promise.allSettled(
+    enabledGroups.map((meta) => pullEvents(meta.groupId, { force })),
+  );
+}
+
 // ── POLLING ──────────────────────────────────────────────────
 
 let pollCount = 0;
@@ -154,15 +171,8 @@ export function startPolling(intervalMs: number): void {
   pollTimer = setInterval(async () => {
     pollCount++;
 
-    const allMeta = await dataRepository.getAllSyncMeta();
-    const enabledGroups = allMeta.filter((m) => m.syncEnabled);
-    for (const meta of enabledGroups) {
-      try {
-        await pullEvents(meta.groupId);
-      } catch {
-        // Individual group pull failure should not stop polling
-      }
-    }
+    // Pull all groups in parallel
+    await pullAllGroups();
 
     // Check for newly shared groups every 3rd poll cycle (~60s)
     if (pollCount % 3 === 0) {
@@ -175,18 +185,6 @@ export function stopPolling(): void {
   if (pollTimer) {
     clearInterval(pollTimer);
     pollTimer = null;
-  }
-}
-
-// ── IMMEDIATE SYNC (called after local mutations) ────────────
-
-export async function syncAfterMutation(groupId: string): Promise<void> {
-  try {
-    await pushEvents(groupId);
-    await pullEvents(groupId);
-  } catch {
-    // Non-blocking: mutation already succeeded locally
-    // Sync will retry on next poll cycle
   }
 }
 
@@ -218,8 +216,10 @@ export async function initialSync(spreadsheetId: string): Promise<string> {
   const sheetMembers = await sheetsApi.readMembersFromSheet(spreadsheetId);
 
   // Store sync meta FIRST — emitSyncEvent checks syncEnabled and returns null without it
-  const totalRows = await sheetsApi.getRowCount(spreadsheetId, 'events');
-  const remoteModified = await driveApi.getFileModifiedTime(spreadsheetId);
+  const [totalRows, remoteModified] = await Promise.all([
+    sheetsApi.getRowCount(spreadsheetId, 'events'),
+    driveApi.getFileModifiedTime(spreadsheetId),
+  ]);
   const now = new Date().toISOString();
 
   await dataRepository.upsertSyncMeta({

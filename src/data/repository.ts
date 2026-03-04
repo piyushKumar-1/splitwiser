@@ -24,6 +24,7 @@ export interface IDataRepository {
 
   // Settlements
   getSettlementsByGroup(groupId: string): Promise<Settlement[]>;
+  getSettlement(id: string): Promise<Settlement | undefined>;
   createSettlement(settlement: Omit<Settlement, 'id' | 'createdAt'>): Promise<Settlement>;
   deleteSettlement(id: string): Promise<void>;
 
