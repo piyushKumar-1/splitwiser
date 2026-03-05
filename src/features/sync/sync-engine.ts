@@ -224,8 +224,10 @@ export async function initialSync(spreadsheetId: string): Promise<string> {
   const rawRows = await sheetsApi.readRows(spreadsheetId, 'events', 2);
   const events = sheetsApi.parseEventRows(rawRows);
 
-  // Replay all events to reconstruct state
-  await replayRemoteEvents(events, user.email, dataRepository);
+  // Replay all events to reconstruct state.
+  // skipSelfEvents=false: during initialSync we replay everything from scratch,
+  // including our own events (we don't have them locally on a fresh device).
+  await replayRemoteEvents(events, user.email, dataRepository, { skipSelfEvents: false });
 
   // Read members from the dedicated members sheet tab (source of truth)
   const sheetMembers = await sheetsApi.readMembersFromSheet(spreadsheetId);

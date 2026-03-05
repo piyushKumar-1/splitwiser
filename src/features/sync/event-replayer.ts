@@ -6,6 +6,7 @@ export async function replayRemoteEvents(
   events: SheetEventRow[],
   selfEmail: string,
   repository: IDataRepository,
+  { skipSelfEvents = true }: { skipSelfEvents?: boolean } = {},
 ): Promise<{
   groupsChanged: boolean;
   expensesChanged: boolean;
@@ -16,8 +17,9 @@ export async function replayRemoteEvents(
   let settlementsChanged = false;
 
   for (const event of events) {
-    // Skip our own events — we already have them locally
-    if (event.authorEmail === selfEmail) continue;
+    // Skip our own events during incremental pulls (we already have them locally).
+    // During initialSync (full replay), skipSelfEvents=false so all events are replayed.
+    if (skipSelfEvents && event.authorEmail === selfEmail) continue;
 
     let entityData: Record<string, unknown>;
     try {
