@@ -3,14 +3,16 @@ import { dataRepository } from '@/data';
 import * as sheetsApi from './sheets-api';
 import * as driveApi from './drive-api';
 import { replayRemoteEvents } from './event-replayer';
-import { getCurrentUser } from './google-auth';
+import { getCurrentUser, isTokenValid, ensureValidToken } from './google-auth';
 import { emitSyncEvent } from './event-builder';
 import { store } from '@/app/store';
 import {
   setSyncOperationStatus,
   setLastSyncAt,
   setSyncError,
+  setSignedOut,
 } from './syncSlice';
+import { setUnauthenticated } from '@/features/auth/authSlice';
 import { fetchGroups } from '@/features/groups/groupsThunks';
 import { fetchExpenses } from '@/features/expenses/expensesThunks';
 import { fetchSettlements } from '@/features/settlements/settlementsThunks';
@@ -232,37 +234,45 @@ export async function initialSync(spreadsheetId: string): Promise<string> {
     syncEnabled: true,
   });
 
-  // Update the local group with members from the sheet
-  const group = await dataRepository.getGroup(groupId);
-  if (group) {
-    // Use sheet members if available, otherwise keep what event replay set
-    const members = sheetMembers.length > 0 ? [...sheetMembers] : [...group.members];
+  // Update the local group with members from the sheet.
+  // If anything below fails, clean up orphaned syncMeta so discovery can retry.
+  try {
+    const group = await dataRepository.getGroup(groupId);
+    if (group) {
+      // Use sheet members if available, otherwise keep what event replay set
+      const members = sheetMembers.length > 0 ? [...sheetMembers] : [...group.members];
 
-    // Auto-add the joining user if not already a member
-    const joinerInList = members.some(
-      (m) => m.email.toLowerCase() === user.email.toLowerCase(),
-    );
-    if (!joinerInList) {
-      members.push({ id: nanoid(), name: user.name, email: user.email });
+      // Auto-add the joining user if not already a member
+      const joinerInList = members.some(
+        (m) => m.email.toLowerCase() === user.email.toLowerCase(),
+      );
+      if (!joinerInList) {
+        members.push({ id: nanoid(), name: user.name, email: user.email });
+      }
+
+      const updatedGroup = {
+        ...group,
+        members,
+        createdBy: group.createdBy || createdByEmail,
+      };
+      await dataRepository.bulkPutGroups([updatedGroup]);
+
+      if (!joinerInList) {
+        // Write updated members back to the sheet
+        await sheetsApi.writeMembersToSheet(spreadsheetId, members);
+
+        // Emit a group update event so other members see the new joiner
+        await emitSyncEvent(groupId, 'group', groupId, 'update', updatedGroup, dataRepository);
+
+        // Push the event to the sheet immediately
+        await pushEvents(groupId);
+      }
     }
-
-    const updatedGroup = {
-      ...group,
-      members,
-      createdBy: group.createdBy || createdByEmail,
-    };
-    await dataRepository.bulkPutGroups([updatedGroup]);
-
-    if (!joinerInList) {
-      // Write updated members back to the sheet
-      await sheetsApi.writeMembersToSheet(spreadsheetId, members);
-
-      // Emit a group update event so other members see the new joiner
-      await emitSyncEvent(groupId, 'group', groupId, 'update', updatedGroup, dataRepository);
-
-      // Push the event to the sheet immediately
-      await pushEvents(groupId);
-    }
+  } catch (err) {
+    // Clean up syncMeta so discovery can retry this spreadsheet
+    await dataRepository.deleteSyncMeta(groupId).catch(() => {});
+    store.dispatch(setSyncOperationStatus('idle'));
+    throw err;
   }
 
   store.dispatch(fetchGroups());

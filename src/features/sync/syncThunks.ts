@@ -82,13 +82,22 @@ export const discoverSharedGroups = createAsyncThunk(
   async (_, { dispatch }) => {
     const files = await driveApi.discoverSharedSpreadsheets();
     const existingMeta = await dataRepository.getAllSyncMeta();
-    const existingSpreadsheetIds = new Set(
-      existingMeta.map((m) => m.spreadsheetId),
-    );
+
+    // Build set of spreadsheet IDs that are properly synced (syncMeta + group exists).
+    // Clean up orphaned syncMeta where group doesn't exist locally.
+    const syncedSpreadsheetIds = new Set<string>();
+    for (const meta of existingMeta) {
+      const group = await dataRepository.getGroup(meta.groupId);
+      if (group) {
+        syncedSpreadsheetIds.add(meta.spreadsheetId);
+      } else {
+        await dataRepository.deleteSyncMeta(meta.groupId).catch(() => {});
+      }
+    }
 
     const newGroups: DiscoveredGroup[] = [];
     for (const file of files) {
-      if (existingSpreadsheetIds.has(file.id)) continue;
+      if (syncedSpreadsheetIds.has(file.id)) continue;
 
       try {
         const groupName = file.name.replace('Splitwiser: ', '');

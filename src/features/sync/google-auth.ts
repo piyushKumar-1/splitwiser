@@ -110,6 +110,14 @@ export function getCurrentUser(): GoogleUser | null {
 }
 
 /**
+ * Returns true if there is a current user with a non-expired token.
+ */
+export function isTokenValid(): boolean {
+  if (!currentUser) return false;
+  return Date.now() < currentUser.expiresAt - 60_000;
+}
+
+/**
  * Restore user + token from localStorage.
  * If the token is still valid, it's used directly — no popup needed.
  */

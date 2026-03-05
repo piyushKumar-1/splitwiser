@@ -16,21 +16,34 @@ export const initializeAuth = createAsyncThunk(
     const user = googleAuth.getCurrentUser();
 
     if (user) {
+      // Initialize GIS library (needed for token refresh)
+      await googleAuth.initGoogleAuth();
+
+      // If token is expired, try to silently refresh it
+      if (!hasValidToken) {
+        try {
+          await googleAuth.ensureValidToken();
+        } catch {
+          // Token refresh failed — user must re-login
+          googleAuth.signOut();
+          clearPersistedAuth();
+          dispatch(setUnauthenticated());
+          dispatch(setSignedOut());
+          return null;
+        }
+      }
+
+      // Token is valid (or was refreshed successfully)
       dispatch(setAuthenticated({ email: user.email, name: user.name }));
       dispatch(setSignedIn({ email: user.email, name: user.name }));
-
-      // Initialize GIS library (needed for future token refreshes)
-      await googleAuth.initGoogleAuth();
 
       // Load sync meta and start polling
       const allMeta = await dataRepository.getAllSyncMeta();
       dispatch(setSyncedGroupIds(allMeta.filter((m) => m.syncEnabled).map((m) => m.groupId)));
       syncEngine.startPolling(SYNC_POLL_INTERVAL_MS);
 
-      // Only run discovery if token is still valid (avoids popup on boot)
-      if (hasValidToken) {
-        discoverAndAutoJoin().catch(() => {});
-      }
+      // Discover and auto-join shared groups
+      discoverAndAutoJoin().catch(() => {});
 
       return { email: user.email, name: user.name };
     }
