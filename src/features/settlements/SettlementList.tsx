@@ -15,8 +15,18 @@ import {
   SheetTrigger,
   SheetClose,
 } from '@/components/ui/sheet';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import MemberAvatar from '@/shared/MemberAvatar';
-import type { Member } from '@/shared/types';
+import type { Member, Settlement } from '@/shared/types';
 
 interface SettlementListProps {
   groupId: string;
@@ -34,6 +44,7 @@ export default function SettlementList({ groupId, members }: SettlementListProps
   const [amountStr, setAmountStr] = useState('');
   const [recording, setRecording] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Settlement | null>(null);
 
   const handleAdd = async () => {
     const amount = Math.round(parseFloat(amountStr || '0') * 100);
@@ -58,13 +69,18 @@ export default function SettlementList({ groupId, members }: SettlementListProps
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (deletingId) return;
-    setDeletingId(id);
+  const handleDeleteClick = (settlement: Settlement) => {
+    setDeleteTarget(settlement);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget || deletingId) return;
+    setDeletingId(deleteTarget.id);
     try {
-      await dispatch(removeSettlement({ id, groupId })).unwrap();
+      await dispatch(removeSettlement({ id: deleteTarget.id, groupId })).unwrap();
     } finally {
       setDeletingId(null);
+      setDeleteTarget(null);
     }
   };
 
@@ -175,7 +191,7 @@ export default function SettlementList({ groupId, members }: SettlementListProps
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 text-muted-foreground hover:text-destructive rounded-lg"
-                    onClick={() => handleDelete(s.id)}
+                    onClick={() => handleDeleteClick(s)}
                     disabled={deletingId === s.id}
                   >
                     {deletingId === s.id ? (
@@ -190,6 +206,29 @@ export default function SettlementList({ groupId, members }: SettlementListProps
           ))}
         </div>
       )}
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete settlement?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Delete the ₹{((deleteTarget?.amount ?? 0) / 100).toFixed(2)} settlement from {getName(deleteTarget?.fromMemberId ?? '')} to {getName(deleteTarget?.toMemberId ?? '')}? This will update all balances.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!deletingId} className="rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={!!deletingId}
+              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-2"
+            >
+              {deletingId && <Loader2 className="h-4 w-4 animate-spin" />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

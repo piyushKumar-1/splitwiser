@@ -4,13 +4,26 @@ import { nanoid } from 'nanoid';
 import type { Member } from '@/shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import MemberAvatar from '@/shared/MemberAvatar';
 import { searchUsers, ensureUserInDirectory, type RegisteredUser } from '@/features/users/user-registry';
+import { toast } from 'sonner';
 
 interface MemberManagerProps {
   members: Member[];
   onChange: (members: Member[]) => void;
   currentUserEmail?: string | null;
+  /** Map of memberId → net balance (from selectNetBalances). Used to block deletion of members with unsettled amounts. */
+  netBalances?: Map<string, number>;
 }
 
 function useDebounce<T>(value: T, delayMs: number): T {
@@ -22,16 +35,17 @@ function useDebounce<T>(value: T, delayMs: number): T {
   return debounced;
 }
 
-export default function MemberManager({ members, onChange, currentUserEmail }: MemberManagerProps) {
+export default function MemberManager({ members, onChange, currentUserEmail, netBalances }: MemberManagerProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<RegisteredUser[]>([]);
   const [searching, setSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
-  const [namePrompt, setNamePrompt] = useState<string | null>(null); // email needing a name
+  const [namePrompt, setNamePrompt] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
+  const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -137,8 +151,20 @@ export default function MemberManager({ members, onChange, currentUserEmail }: M
     setSearchQuery('');
   };
 
-  const handleRemove = (id: string) => {
-    onChange(members.filter((m) => m.id !== id));
+  const handleRemoveClick = (member: Member) => {
+    // Check if member has unsettled balance
+    const balance = netBalances?.get(member.id) ?? 0;
+    if (Math.abs(balance) > 0) {
+      toast.error(`${member.name} has an unsettled balance of ₹${(Math.abs(balance) / 100).toFixed(2)}. Settle up before removing.`);
+      return;
+    }
+    setRemoveTarget(member);
+  };
+
+  const confirmRemove = () => {
+    if (!removeTarget) return;
+    onChange(members.filter((m) => m.id !== removeTarget.id));
+    setRemoveTarget(null);
   };
 
   const startEdit = (member: Member) => {
@@ -365,7 +391,7 @@ export default function MemberManager({ members, onChange, currentUserEmail }: M
                 {!isCurrentUser && (
                   <button
                     type="button"
-                    onClick={() => handleRemove(m.id)}
+                    onClick={() => handleRemoveClick(m)}
                     className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground/50 hover:bg-destructive/10 hover:text-destructive transition-all"
                   >
                     <X className="h-3.5 w-3.5" />
@@ -382,6 +408,27 @@ export default function MemberManager({ members, onChange, currentUserEmail }: M
           </p>
         </div>
       )}
+
+      {/* Remove member confirmation */}
+      <AlertDialog open={!!removeTarget} onOpenChange={(open) => !open && setRemoveTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {removeTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove {removeTarget?.name} from the group. Their past expenses and splits will remain in history.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmRemove}
+              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

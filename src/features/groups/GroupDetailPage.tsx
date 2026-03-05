@@ -9,6 +9,7 @@ import { fetchExpenses } from '@/features/expenses/expensesThunks';
 import { fetchSettlements } from '@/features/settlements/settlementsThunks';
 import { fetchActivities } from '@/features/activity/activityThunks';
 import { selectExpenses } from '@/features/expenses/expensesSelectors';
+import { selectNetBalances } from '@/features/balances/balancesSelectors';
 import MemberManager from './MemberManager';
 import ExpenseList from '@/features/expenses/ExpenseListPage';
 import BalanceSummary from '@/features/balances/BalanceSummary';
@@ -37,6 +38,7 @@ export default function GroupDetailPage() {
   const dispatch = useAppDispatch();
   const group = useAppSelector(selectActiveGroup);
   const expenses = useAppSelector(selectExpenses);
+  const netBalances = useAppSelector(selectNetBalances);
   const currentUserEmail = useAppSelector(selectAuthUserEmail);
   const [syncing, setSyncing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
@@ -207,7 +209,7 @@ export default function GroupDetailPage() {
               <SheetTitle>Manage Members</SheetTitle>
             </SheetHeader>
             <div className="py-4 overflow-y-auto">
-              <MemberManager members={group.members} onChange={handleMembersChange} currentUserEmail={currentUserEmail} />
+              <MemberManager members={group.members} onChange={handleMembersChange} currentUserEmail={currentUserEmail} netBalances={netBalances} />
             </div>
           </SheetContent>
         </Sheet>
@@ -231,7 +233,7 @@ export default function GroupDetailPage() {
                 <SheetTitle>Manage Members</SheetTitle>
               </SheetHeader>
               <div className="py-4 overflow-y-auto">
-                <MemberManager members={group.members} onChange={handleMembersChange} currentUserEmail={currentUserEmail} />
+                <MemberManager members={group.members} onChange={handleMembersChange} currentUserEmail={currentUserEmail} netBalances={netBalances} />
               </div>
             </SheetContent>
           </Sheet>
