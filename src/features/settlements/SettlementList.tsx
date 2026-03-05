@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, Trash2, Plus, HandCoins } from 'lucide-react';
+import { ArrowRight, Trash2, Plus, HandCoins, Loader2 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { addSettlement, removeSettlement } from './settlementsThunks';
 import { Button } from '@/components/ui/button';
@@ -32,23 +32,40 @@ export default function SettlementList({ groupId, members }: SettlementListProps
   const [fromId, setFromId] = useState('');
   const [toId, setToId] = useState('');
   const [amountStr, setAmountStr] = useState('');
+  const [recording, setRecording] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     const amount = Math.round(parseFloat(amountStr || '0') * 100);
-    if (!fromId || !toId || fromId === toId || amount <= 0) return;
-    dispatch(addSettlement({
-      groupId,
-      fromMemberId: fromId,
-      toMemberId: toId,
-      amount,
-      date: new Date().toISOString().slice(0, 10),
-      fromName: getName(fromId),
-      toName: getName(toId),
-    }));
-    setOpen(false);
-    setFromId('');
-    setToId('');
-    setAmountStr('');
+    if (!fromId || !toId || fromId === toId || amount <= 0 || recording) return;
+    setRecording(true);
+    try {
+      await dispatch(addSettlement({
+        groupId,
+        fromMemberId: fromId,
+        toMemberId: toId,
+        amount,
+        date: new Date().toISOString().slice(0, 10),
+        fromName: getName(fromId),
+        toName: getName(toId),
+      })).unwrap();
+      setOpen(false);
+      setFromId('');
+      setToId('');
+      setAmountStr('');
+    } finally {
+      setRecording(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (deletingId) return;
+    setDeletingId(id);
+    try {
+      await dispatch(removeSettlement({ id, groupId })).unwrap();
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -118,10 +135,11 @@ export default function SettlementList({ groupId, members }: SettlementListProps
                 </SheetClose>
                 <Button
                   onClick={handleAdd}
-                  disabled={!fromId || !toId || fromId === toId || parseFloat(amountStr || '0') <= 0}
-                  className="flex-1 h-11 rounded-xl"
+                  disabled={!fromId || !toId || fromId === toId || parseFloat(amountStr || '0') <= 0 || recording}
+                  className="flex-1 h-11 rounded-xl gap-2"
                 >
-                  Record
+                  {recording && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {recording ? 'Recording...' : 'Record'}
                 </Button>
               </div>
             </div>
@@ -157,9 +175,14 @@ export default function SettlementList({ groupId, members }: SettlementListProps
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 text-muted-foreground hover:text-destructive rounded-lg"
-                    onClick={() => dispatch(removeSettlement({ id: s.id, groupId }))}
+                    onClick={() => handleDelete(s.id)}
+                    disabled={deletingId === s.id}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    {deletingId === s.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5" />
+                    )}
                   </Button>
                 </div>
               </CardContent>
