@@ -290,7 +290,7 @@ export async function initialSync(spreadsheetId: string): Promise<string> {
     throw err;
   }
 
-  store.dispatch(fetchGroups());
+  await store.dispatch(fetchGroups()).unwrap();
   store.dispatch(setSyncOperationStatus('idle'));
 
   return groupId;
