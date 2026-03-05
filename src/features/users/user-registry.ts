@@ -123,6 +123,7 @@ async function searchByNamePrefix(
 
 /**
  * Register user with the nameLower field for search support.
+ * `registered: true` means the user signed into the app themselves.
  */
 export async function registerUserWithSearch(email: string, name: string): Promise<void> {
   const docId = email.toLowerCase();
@@ -132,8 +133,32 @@ export async function registerUserWithSearch(email: string, name: string): Promi
       email: docId,
       name,
       nameLower: name.toLowerCase(),
+      registered: true,
       registeredAt: new Date().toISOString(),
     },
     { merge: true },
   );
+}
+
+/**
+ * Add a user to the directory who was manually added to a group
+ * but hasn't signed into the app themselves.
+ * Uses `merge: true` so it won't overwrite if they already exist.
+ * Sets `registered: false` only if the doc doesn't already exist.
+ */
+export async function ensureUserInDirectory(email: string, name: string): Promise<void> {
+  const docId = email.toLowerCase();
+  const { getDoc: getDocument } = await import('firebase/firestore');
+  const docRef = doc(db, USERS_COLLECTION, docId);
+  const existing = await getDocument(docRef);
+
+  if (!existing.exists()) {
+    await setDoc(docRef, {
+      email: docId,
+      name,
+      nameLower: name.toLowerCase(),
+      registered: false,
+      addedAt: new Date().toISOString(),
+    });
+  }
 }
