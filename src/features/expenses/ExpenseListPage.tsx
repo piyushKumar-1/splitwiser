@@ -1,12 +1,23 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Trash2, Receipt, ArrowRight } from 'lucide-react';
+import { Trash2, Receipt, ArrowRight, Loader2 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { selectExpenses } from './expensesSelectors';
 import { removeExpense } from './expensesThunks';
 import { selectSimplifiedDebts } from '@/features/balances/balancesSelectors';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { EXPENSE_CATEGORIES } from '@/shared/constants';
-import type { Member } from '@/shared/types';
+import type { Member, Expense } from '@/shared/types';
 
 interface ExpenseListProps {
   groupId: string;
@@ -22,6 +33,19 @@ export default function ExpenseList({ groupId, members }: ExpenseListProps) {
   const dispatch = useAppDispatch();
   const expenses = useAppSelector(selectExpenses);
   const debts = useAppSelector(selectSimplifiedDebts);
+  const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await dispatch(removeExpense({ id: deleteTarget.id, groupId, description: deleteTarget.description })).unwrap();
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
 
   const getMemberName = (id: string) => members.find((m) => m.id === id)?.name ?? 'Unknown';
   const getCategoryLabel = (val: string) => EXPENSE_CATEGORIES.find((c) => c.value === val)?.label ?? val;
@@ -99,7 +123,7 @@ export default function ExpenseList({ groupId, members }: ExpenseListProps) {
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    dispatch(removeExpense({ id: exp.id, groupId, description: exp.description }));
+                    setDeleteTarget(exp);
                   }}
                 >
                   <Trash2 className="h-3 w-3" />
@@ -109,6 +133,29 @@ export default function ExpenseList({ groupId, members }: ExpenseListProps) {
           </Link>
         ))}
       </div>
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete expense?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Delete &ldquo;{deleteTarget?.description}&rdquo; (₹{((deleteTarget?.amount ?? 0) / 100).toFixed(2)})? This will update all balances and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting} className="rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={deleting}
+              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-2"
+            >
+              {deleting && <Loader2 className="h-4 w-4 animate-spin" />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
