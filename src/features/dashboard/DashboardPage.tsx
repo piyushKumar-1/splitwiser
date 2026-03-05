@@ -1,20 +1,42 @@
-import { useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Plus, Receipt, Users, Wallet } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
-import { fetchGroups } from '@/features/groups/groupsThunks';
+import { fetchGroups, addGroup } from '@/features/groups/groupsThunks';
 import { selectGroups } from '@/features/groups/groupsSelectors';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogClose,
+} from '@/components/ui/dialog';
 import MemberAvatar from '@/shared/MemberAvatar';
 
 export default function DashboardPage() {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const groups = useAppSelector(selectGroups);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [groupName, setGroupName] = useState('');
 
   useEffect(() => {
     dispatch(fetchGroups());
   }, [dispatch]);
+
+  const handleCreate = async () => {
+    if (!groupName.trim()) return;
+    const result = await dispatch(addGroup({ name: groupName.trim(), members: [] }));
+    setGroupName('');
+    setCreateOpen(false);
+    if (addGroup.fulfilled.match(result)) {
+      navigate(`/groups/${result.payload.id}`);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -56,12 +78,43 @@ export default function DashboardPage() {
       </div>
 
       {/* Quick action */}
-      <Link to="/groups">
-        <Button className="w-full h-12 text-base rounded-2xl shadow-md shadow-primary/20 gap-2">
-          <Plus className="h-5 w-5" />
-          Create New Group
-        </Button>
-      </Link>
+      <Button
+        className="w-full h-12 text-base rounded-2xl shadow-md shadow-primary/20 gap-2"
+        onClick={() => setCreateOpen(true)}
+      >
+        <Plus className="h-5 w-5" />
+        Create New Group
+      </Button>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Create Group</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label htmlFor="dashboard-group-name">Group Name</Label>
+              <Input
+                id="dashboard-group-name"
+                placeholder="e.g., Trip to Goa"
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+                autoFocus
+                className="h-11 rounded-xl"
+              />
+            </div>
+            <div className="flex gap-2">
+              <DialogClose asChild>
+                <Button variant="outline" className="flex-1 rounded-xl">Cancel</Button>
+              </DialogClose>
+              <Button onClick={handleCreate} disabled={!groupName.trim()} className="flex-1 rounded-xl">
+                Create
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Groups list */}
       {groups.length === 0 ? (

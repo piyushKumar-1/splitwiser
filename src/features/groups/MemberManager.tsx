@@ -5,7 +5,7 @@ import type { Member } from '@/shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import MemberAvatar from '@/shared/MemberAvatar';
-import { searchUsers, type RegisteredUser } from '@/features/users/user-registry';
+import { searchUsers, ensureUserInDirectory, type RegisteredUser } from '@/features/users/user-registry';
 
 interface MemberManagerProps {
   members: Member[];
@@ -33,6 +33,7 @@ export default function MemberManager({ members, onChange, currentUserEmail }: M
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const searchRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const debouncedQuery = useDebounce(searchQuery, 300);
 
@@ -123,10 +124,14 @@ export default function MemberManager({ members, onChange, currentUserEmail }: M
 
   const confirmNameAndAdd = () => {
     if (!namePrompt || !nameInput.trim()) return;
+    const name = nameInput.trim();
+    const email = namePrompt;
     onChange([
       ...members,
-      { id: nanoid(), name: nameInput.trim(), email: namePrompt },
+      { id: nanoid(), name, email },
     ]);
+    // Register in Firestore directory as unregistered user (non-blocking)
+    ensureUserInDirectory(email, name).catch(() => {});
     setNamePrompt(null);
     setNameInput('');
     setSearchQuery('');
@@ -167,6 +172,7 @@ export default function MemberManager({ members, onChange, currentUserEmail }: M
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
+            ref={searchInputRef}
             placeholder="Search by name or email..."
             value={searchQuery}
             onChange={(e) => {
@@ -174,7 +180,16 @@ export default function MemberManager({ members, onChange, currentUserEmail }: M
               setShowResults(true);
               setNamePrompt(null);
             }}
-            onFocus={() => setShowResults(true)}
+            onFocus={() => {
+              setShowResults(true);
+              // Scroll input into view above keyboard on mobile
+              setTimeout(() => {
+                searchInputRef.current?.scrollIntoView({
+                  behavior: 'smooth',
+                  block: 'center',
+                });
+              }, 300);
+            }}
             onKeyDown={handleSearchKeyDown}
             className="h-11 rounded-xl pl-9 pr-9"
           />
