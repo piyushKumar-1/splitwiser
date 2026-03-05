@@ -28,6 +28,7 @@ import {
 import MemberAvatar from '@/shared/MemberAvatar';
 import EnableSyncButton from '@/features/sync/EnableSyncButton';
 import { selectAuthUserEmail } from '@/features/auth/authSelectors';
+import { useKeyboardHeight } from '@/shared/useKeyboardHeight';
 import { pullEvents } from '@/features/sync/sync-engine';
 import { toast } from 'sonner';
 import type { Member } from '@/shared/types';
@@ -41,6 +42,7 @@ export default function GroupDetailPage() {
   const netBalances = useAppSelector(selectNetBalances);
   const currentUserEmail = useAppSelector(selectAuthUserEmail);
   const [syncing, setSyncing] = useState(false);
+  const keyboardHeight = useKeyboardHeight();
   const [pullDistance, setPullDistance] = useState(0);
   const touchStartY = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -204,11 +206,11 @@ export default function GroupDetailPage() {
                 <UserPlus className="h-4 w-4" />
               </Button>
             </SheetTrigger>
-          <SheetContent side="bottom" className="rounded-t-3xl max-h-[85vh]">
+          <SheetContent side="bottom" className="rounded-t-3xl max-h-[85dvh]" style={{ bottom: keyboardHeight > 0 ? keyboardHeight : undefined }}>
             <SheetHeader>
               <SheetTitle>Manage Members</SheetTitle>
             </SheetHeader>
-            <div className="py-4 overflow-y-auto">
+            <div className="py-4 overflow-y-auto pb-[env(keyboard-inset-height,0px)]">
               <MemberManager members={group.members} onChange={handleMembersChange} currentUserEmail={currentUserEmail} netBalances={netBalances} />
             </div>
           </SheetContent>
@@ -228,11 +230,11 @@ export default function GroupDetailPage() {
                 <Plus className="h-4 w-4" /> Add Members
               </Button>
             </SheetTrigger>
-            <SheetContent side="bottom" className="rounded-t-3xl max-h-[85vh]">
+            <SheetContent side="bottom" className="rounded-t-3xl max-h-[85dvh]" style={{ bottom: keyboardHeight > 0 ? keyboardHeight : undefined }}>
               <SheetHeader>
                 <SheetTitle>Manage Members</SheetTitle>
               </SheetHeader>
-              <div className="py-4 overflow-y-auto">
+              <div className="py-4 overflow-y-auto pb-[env(keyboard-inset-height,0px)]">
                 <MemberManager members={group.members} onChange={handleMembersChange} currentUserEmail={currentUserEmail} netBalances={netBalances} />
               </div>
             </SheetContent>

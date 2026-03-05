@@ -209,12 +209,15 @@ export default function MemberManager({ members, onChange, currentUserEmail, net
             onFocus={() => {
               setShowResults(true);
               // Scroll input into view above keyboard on mobile
-              setTimeout(() => {
-                searchInputRef.current?.scrollIntoView({
-                  behavior: 'smooth',
-                  block: 'center',
-                });
-              }, 300);
+              // Uses requestAnimationFrame to wait for layout reflow after keyboard resize
+              requestAnimationFrame(() => {
+                setTimeout(() => {
+                  searchInputRef.current?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest',
+                  });
+                }, 350);
+              });
             }}
             onKeyDown={handleSearchKeyDown}
             className="h-11 rounded-xl pl-9 pr-9"
