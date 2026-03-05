@@ -100,7 +100,24 @@ export default function GroupDetailPage() {
     setPullDistance(0);
   }, [pullDistance, refreshData]);
 
+  const [waitedForLoad, setWaitedForLoad] = useState(false);
+
+  useEffect(() => {
+    if (!group) {
+      const timer = setTimeout(() => setWaitedForLoad(true), 1500);
+      return () => clearTimeout(timer);
+    }
+    setWaitedForLoad(false);
+  }, [group]);
+
   if (!group) {
+    if (!waitedForLoad) {
+      return (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      );
+    }
     return (
       <div className="text-center py-16">
         <p className="text-muted-foreground">Group not found.</p>
