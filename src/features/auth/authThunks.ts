@@ -7,6 +7,7 @@ import { SYNC_POLL_INTERVAL_MS } from '@/features/sync/constants';
 import { setAuthenticated, setUnauthenticated } from './authSlice';
 import { clearPersistedAuth } from './auth-persistence';
 import { discoverAndAutoJoin } from '@/features/sync/auto-discover';
+import { signInToFirebase, registerUserWithSearch } from '@/features/users/user-registry';
 
 export const initializeAuth = createAsyncThunk(
   'auth/initialize',
@@ -37,6 +38,11 @@ export const initializeAuth = createAsyncThunk(
       dispatch(setAuthenticated({ email: user.email, name: user.name }));
       dispatch(setSignedIn({ email: user.email, name: user.name }));
 
+      // Sign into Firebase and register in user directory (non-blocking)
+      signInToFirebase(user.accessToken)
+        .then(() => registerUserWithSearch(user.email, user.name))
+        .catch(() => {}); // Silent — directory is best-effort
+
       // Load sync meta and start polling
       const allMeta = await dataRepository.getAllSyncMeta();
       dispatch(setSyncedGroupIds(allMeta.filter((m) => m.syncEnabled).map((m) => m.groupId)));
@@ -62,6 +68,14 @@ export const loginWithGoogle = createAsyncThunk(
     dispatch(setAuthenticated({ email: user.email, name: user.name }));
     dispatch(setSignedIn({ email: user.email, name: user.name }));
     // Token is persisted inside google-auth.ts signIn()
+
+    // Sign into Firebase and register in user directory
+    try {
+      await signInToFirebase(user.accessToken);
+      await registerUserWithSearch(user.email, user.name);
+    } catch {
+      // Silent — directory is best-effort
+    }
 
     // Load sync meta and start polling
     const allMeta = await dataRepository.getAllSyncMeta();
