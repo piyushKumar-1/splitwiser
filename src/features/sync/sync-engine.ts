@@ -173,6 +173,19 @@ export function startPolling(intervalMs: number): void {
   pollTimer = setInterval(async () => {
     pollCount++;
 
+    // Check token validity before making API calls
+    if (!isTokenValid()) {
+      try {
+        await ensureValidToken();
+      } catch {
+        // Token refresh failed — user is logged out
+        store.dispatch(setUnauthenticated());
+        store.dispatch(setSignedOut());
+        stopPolling();
+        return;
+      }
+    }
+
     // Pull all groups in parallel
     await pullAllGroups();
 
