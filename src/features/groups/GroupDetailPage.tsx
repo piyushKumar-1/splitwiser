@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Plus, ArrowLeft, Settings2, RefreshCw, Loader2 } from 'lucide-react';
+import { Plus, ArrowLeft, UserPlus, RefreshCw, Loader2 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { fetchGroups, editGroup } from './groupsThunks';
 import { setActiveGroup } from './groupsSlice';
@@ -198,8 +198,8 @@ export default function GroupDetailPage() {
           <EnableSyncButton groupId={group.id} groupName={group.name} />
           <Sheet>
             <SheetTrigger asChild>
-              <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl">
-                <Settings2 className="h-4 w-4" />
+              <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl" title="Manage Members">
+                <UserPlus className="h-4 w-4" />
               </Button>
             </SheetTrigger>
           <SheetContent side="bottom" className="rounded-t-3xl max-h-[85vh]">

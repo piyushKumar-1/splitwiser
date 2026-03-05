@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { selectActiveGroup } from '@/features/groups/groupsSelectors';
 import { setActiveGroup } from '@/features/groups/groupsSlice';
@@ -262,7 +262,8 @@ export default function ExpenseForm() {
         <Button type="button" variant="outline" className="flex-1 h-12 rounded-2xl" onClick={() => navigate(-1)}>
           Cancel
         </Button>
-        <Button type="submit" className="flex-1 h-12 rounded-2xl shadow-md shadow-primary/20 font-semibold" disabled={!isValid() || submitting}>
+        <Button type="submit" className="flex-1 h-12 rounded-2xl shadow-md shadow-primary/20 font-semibold gap-2" disabled={!isValid() || submitting}>
+          {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
           {submitting ? 'Saving...' : isEditing ? 'Save Changes' : 'Add Expense'}
         </Button>
       </div>

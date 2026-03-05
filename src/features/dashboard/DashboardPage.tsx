@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Plus, Receipt, Users, Wallet } from 'lucide-react';
+import { ArrowRight, Plus, Receipt, Users, Wallet, Loader2 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { fetchGroups, addGroup } from '@/features/groups/groupsThunks';
 import { selectGroups } from '@/features/groups/groupsSelectors';
@@ -23,18 +23,24 @@ export default function DashboardPage() {
   const groups = useAppSelector(selectGroups);
   const [createOpen, setCreateOpen] = useState(false);
   const [groupName, setGroupName] = useState('');
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     dispatch(fetchGroups());
   }, [dispatch]);
 
   const handleCreate = async () => {
-    if (!groupName.trim()) return;
-    const result = await dispatch(addGroup({ name: groupName.trim(), members: [] }));
-    setGroupName('');
-    setCreateOpen(false);
-    if (addGroup.fulfilled.match(result)) {
-      navigate(`/groups/${result.payload.id}`);
+    if (!groupName.trim() || creating) return;
+    setCreating(true);
+    try {
+      const result = await dispatch(addGroup({ name: groupName.trim(), members: [] }));
+      setGroupName('');
+      setCreateOpen(false);
+      if (addGroup.fulfilled.match(result)) {
+        navigate(`/groups/${result.payload.id}`);
+      }
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -108,8 +114,9 @@ export default function DashboardPage() {
               <DialogClose asChild>
                 <Button variant="outline" className="flex-1 rounded-xl">Cancel</Button>
               </DialogClose>
-              <Button onClick={handleCreate} disabled={!groupName.trim()} className="flex-1 rounded-xl">
-                Create
+              <Button onClick={handleCreate} disabled={!groupName.trim() || creating} className="flex-1 rounded-xl gap-2">
+                {creating && <Loader2 className="h-4 w-4 animate-spin" />}
+                {creating ? 'Creating...' : 'Create'}
               </Button>
             </div>
           </div>
