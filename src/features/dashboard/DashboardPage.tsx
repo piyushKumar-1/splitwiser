@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Plus, Receipt, Users, Wallet, Loader2 } from 'lucide-react';
+import { ArrowRight, Plus, Receipt, Users, Wallet, Loader2, Camera } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { fetchGroups, addGroup } from '@/features/groups/groupsThunks';
 import { selectGroups } from '@/features/groups/groupsSelectors';
@@ -83,14 +83,25 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Quick action */}
-      <Button
-        className="w-full h-12 text-base rounded-2xl shadow-md shadow-primary/20 gap-2"
-        onClick={() => setCreateOpen(true)}
-      >
-        <Plus className="h-5 w-5" />
-        Create New Group
-      </Button>
+      {/* Quick actions */}
+      <div className="flex gap-2">
+        <Button
+          className="flex-1 h-12 text-base rounded-2xl shadow-md shadow-primary/20 gap-2"
+          onClick={() => setCreateOpen(true)}
+        >
+          <Plus className="h-5 w-5" />
+          New Group
+        </Button>
+        <Link to="/scan-bill">
+          <Button
+            variant="outline"
+            className="h-12 rounded-2xl gap-2 text-base px-4"
+          >
+            <Camera className="h-5 w-5" />
+            Scan Bill
+          </Button>
+        </Link>
+      </div>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-sm">
