@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Plus, ArrowLeft, UserPlus, RefreshCw, Loader2 } from 'lucide-react';
+import { Plus, ArrowLeft, UserPlus, RefreshCw, Loader2, Camera } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { fetchGroups, editGroup } from './groupsThunks';
 import { setActiveGroup } from './groupsSlice';
@@ -245,12 +245,19 @@ export default function GroupDetailPage() {
       {/* Main content */}
       {group.members.length >= 2 && (
         <>
-          {/* FAB for adding expense */}
-          <Link to={`/groups/${group.id}/expenses/new`}>
-            <Button className="w-full h-12 rounded-2xl shadow-md shadow-primary/20 gap-2 text-sm font-semibold">
-              <Plus className="h-5 w-5" /> Add Expense
-            </Button>
-          </Link>
+          {/* Action buttons */}
+          <div className="flex gap-2">
+            <Link to={`/groups/${group.id}/expenses/new`} className="flex-1">
+              <Button className="w-full h-12 rounded-2xl shadow-md shadow-primary/20 gap-2 text-sm font-semibold">
+                <Plus className="h-5 w-5" /> Add Expense
+              </Button>
+            </Link>
+            <Link to={`/groups/${group.id}/scan-bill`}>
+              <Button variant="outline" className="h-12 rounded-2xl gap-2 text-sm font-semibold px-4">
+                <Camera className="h-5 w-5" /> Scan Bill
+              </Button>
+            </Link>
+          </div>
 
           <Tabs defaultValue="expenses">
             <TabsList variant="line" className="w-full border-b rounded-none pb-0 justify-start gap-0">

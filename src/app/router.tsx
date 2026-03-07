@@ -6,6 +6,7 @@ import GroupDetailPage from '@/features/groups/GroupDetailPage';
 import ExpenseForm from '@/features/expenses/ExpenseForm';
 import DataPortabilityPage from '@/features/data-portability/DataPortabilityPage';
 import SyncSettingsPage from '@/features/sync/SyncSettingsPage';
+import BillScanPage from '@/features/bill-scan/BillScanPage';
 
 export const router = createBrowserRouter([
   {
@@ -17,6 +18,8 @@ export const router = createBrowserRouter([
       { path: 'groups/:groupId', element: <GroupDetailPage /> },
       { path: 'groups/:groupId/expenses/new', element: <ExpenseForm /> },
       { path: 'groups/:groupId/expenses/:expenseId', element: <ExpenseForm /> },
+      { path: 'groups/:groupId/scan-bill', element: <BillScanPage /> },
+      { path: 'scan-bill', element: <BillScanPage /> },
       { path: 'settings', element: <DataPortabilityPage /> },
       { path: 'settings/sync', element: <SyncSettingsPage /> },
     ],
