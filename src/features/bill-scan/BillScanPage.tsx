@@ -41,7 +41,7 @@ export default function BillScanPage() {
 
   const [step, setStep] = useState<Step>('capture');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [parsedBill, setParsedBill] = useState<ParsedBill | null>(null);
+  const [, setParsedBill] = useState<ParsedBill | null>(null);
   const [items, setItems] = useState<BillItem[]>([]);
   const [paidByEmail, setPaidByEmail] = useState(userEmail || '');
   const [submitting, setSubmitting] = useState(false);
