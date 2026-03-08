@@ -20,7 +20,7 @@ import { selectAuthUserEmail, selectAuthUserDisplayName } from '@/features/auth/
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { parseWithGemini } from './gemini-parser';
+import { recognizeText, terminateOCR } from './ocr-worker';
 import { parseBillText } from './bill-parser';
 import MemberSearchSelect from './MemberSearchSelect';
 import type { BillItem, AssignedMember, ParsedBill } from './types';
@@ -59,6 +59,12 @@ export default function BillScanPage() {
     }
   }, [dispatch, groupId]);
 
+  useEffect(() => {
+    return () => {
+      terminateOCR();
+    };
+  }, []);
+
   const handleImageSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -74,18 +80,8 @@ export default function BillScanPage() {
     setStep('processing');
 
     try {
-      // Try Gemini first, fall back to local OCR
-      let bill: ParsedBill;
-      try {
-        bill = await parseWithGemini(file);
-      } catch (geminiErr) {
-        console.warn('Gemini parsing failed, falling back to local OCR:', geminiErr);
-        // Fallback: use Tesseract + local parser
-        const { recognizeText } = await import('./ocr-worker');
-        const text = await recognizeText(file);
-        bill = parseBillText(text);
-      }
-
+      const text = await recognizeText(file);
+      const bill = parseBillText(text);
       setParsedBill(bill);
       setItems(bill.items);
       setStep('assign');
@@ -98,7 +94,7 @@ export default function BillScanPage() {
         toast.success(`Found ${bill.items.length} items${taxMsg}`);
       }
     } catch (err) {
-      toast.error(`Failed to parse bill: ${(err as Error).message}`);
+      toast.error(`OCR failed: ${(err as Error).message}`);
       setStep('capture');
     }
   };
