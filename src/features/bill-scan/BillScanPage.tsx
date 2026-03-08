@@ -85,7 +85,8 @@ export default function BillScanPage() {
       if (bill.items.length === 0) {
         toast('No items detected. You can add them manually.');
       } else {
-        toast.success(`Found ${bill.items.length} items`);
+        const taxMsg = bill.tax > 0 ? ` (taxes ₹${(bill.tax / 100).toFixed(2)} distributed)` : '';
+        toast.success(`Found ${bill.items.length} items${taxMsg}`);
       }
     } catch (err) {
       toast.error(`OCR failed: ${(err as Error).message}`);

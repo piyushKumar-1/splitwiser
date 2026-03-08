@@ -13,9 +13,9 @@ export interface AssignedMember {
 }
 
 export interface ParsedBill {
-  items: BillItem[];
-  subtotal: number; // cents
-  tax: number; // cents
-  total: number; // cents
+  items: BillItem[]; // items with taxes distributed proportionally
+  subtotal: number; // cents (items before tax)
+  tax: number; // cents (total tax/charges)
+  total: number; // cents (final bill amount)
   rawText: string;
 }
