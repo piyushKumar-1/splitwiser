@@ -20,7 +20,7 @@ import { selectAuthUserEmail, selectAuthUserDisplayName } from '@/features/auth/
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { recognizeText, terminateOCR } from './ocr-worker';
+import { parseWithGemini } from './gemini-parser';
 import { parseBillText } from './bill-parser';
 import MemberSearchSelect from './MemberSearchSelect';
 import type { BillItem, AssignedMember, ParsedBill } from './types';
@@ -37,7 +37,8 @@ export default function BillScanPage() {
   const group = useAppSelector(selectActiveGroup);
   const userEmail = useAppSelector(selectAuthUserEmail);
   const userName = useAppSelector(selectAuthUserDisplayName);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState<Step>('capture');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -58,15 +59,12 @@ export default function BillScanPage() {
     }
   }, [dispatch, groupId]);
 
-  useEffect(() => {
-    return () => {
-      terminateOCR();
-    };
-  }, []);
-
-  const handleCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Reset input so the same file can be re-selected
+    e.target.value = '';
 
     // Show preview
     const reader = new FileReader();
@@ -76,8 +74,18 @@ export default function BillScanPage() {
     setStep('processing');
 
     try {
-      const text = await recognizeText(file);
-      const bill = parseBillText(text);
+      // Try Gemini first, fall back to local OCR
+      let bill: ParsedBill;
+      try {
+        bill = await parseWithGemini(file);
+      } catch (geminiErr) {
+        console.warn('Gemini parsing failed, falling back to local OCR:', geminiErr);
+        // Fallback: use Tesseract + local parser
+        const { recognizeText } = await import('./ocr-worker');
+        const text = await recognizeText(file);
+        bill = parseBillText(text);
+      }
+
       setParsedBill(bill);
       setItems(bill.items);
       setStep('assign');
@@ -85,11 +93,12 @@ export default function BillScanPage() {
       if (bill.items.length === 0) {
         toast('No items detected. You can add them manually.');
       } else {
-        const taxMsg = bill.tax > 0 ? ` (taxes ₹${(bill.tax / 100).toFixed(2)} distributed)` : '';
+        const taxMsg =
+          bill.tax > 0 ? ` (taxes ₹${(bill.tax / 100).toFixed(2)} distributed)` : '';
         toast.success(`Found ${bill.items.length} items${taxMsg}`);
       }
     } catch (err) {
-      toast.error(`OCR failed: ${(err as Error).message}`);
+      toast.error(`Failed to parse bill: ${(err as Error).message}`);
       setStep('capture');
     }
   };
@@ -243,6 +252,23 @@ export default function BillScanPage() {
         </div>
       </div>
 
+      {/* Hidden file inputs (always in DOM for ref access) */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleImageSelected}
+        className="hidden"
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleImageSelected}
+        className="hidden"
+      />
+
       {/* Step: Capture */}
       {step === 'capture' && (
         <div className="space-y-4">
@@ -252,28 +278,28 @@ export default function BillScanPage() {
             </div>
           )}
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={handleCapture}
-            className="hidden"
-          />
+          <div className="grid grid-cols-2 gap-3">
+            <Button
+              className="h-14 rounded-2xl shadow-md gap-2 text-sm font-semibold"
+              onClick={() => cameraInputRef.current?.click()}
+            >
+              <Camera className="h-5 w-5" />
+              Take Photo
+            </Button>
+            <Button
+              variant="outline"
+              className="h-14 rounded-2xl gap-2 text-sm font-semibold"
+              onClick={() => galleryInputRef.current?.click()}
+            >
+              <Receipt className="h-5 w-5" />
+              From Gallery
+            </Button>
+          </div>
 
           <Button
-            className="w-full h-14 rounded-2xl shadow-md gap-3 text-base"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Camera className="h-5 w-5" />
-            Take Photo of Bill
-          </Button>
-
-          <Button
-            variant="outline"
-            className="w-full h-11 rounded-2xl gap-2"
+            variant="ghost"
+            className="w-full h-10 rounded-2xl gap-2 text-sm text-muted-foreground"
             onClick={() => {
-              // Skip scanning, go directly to manual entry
               setStep('assign');
               setItems([]);
             }}
@@ -311,18 +337,24 @@ export default function BillScanPage() {
                 alt="Bill"
                 className="w-full h-full object-cover opacity-30"
               />
-              <div className="absolute inset-0 flex items-center justify-center">
+              <div className="absolute inset-0 flex items-center justify-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
                   className="rounded-lg h-7 text-xs gap-1"
-                  onClick={() => {
-                    setStep('capture');
-                    setImagePreview(null);
-                  }}
+                  onClick={() => cameraInputRef.current?.click()}
                 >
                   <Camera className="h-3 w-3" />
-                  Rescan
+                  Retake
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-lg h-7 text-xs gap-1"
+                  onClick={() => galleryInputRef.current?.click()}
+                >
+                  <Receipt className="h-3 w-3" />
+                  Gallery
                 </Button>
               </div>
             </div>
